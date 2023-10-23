@@ -34,4 +34,4 @@ The Python module `WPSmesh` is built upon the [nbodykit](https://nbodykit.readth
 
 ## Acknowledgement
 
-We especially thank Dr. Yu Feng and Dr. Simon Foreman for their help.
+We especially thank [Dr. Yu Feng](https://github.com/rainwoodman) and [Dr. Simon Foreman](https://github.com/sjforeman) for their help.
