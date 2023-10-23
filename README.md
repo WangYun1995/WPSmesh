@@ -1,5 +1,5 @@
 # WPSmesh
-`WPSmesh` is the Python module that we used to measure the environment-dependent Wavelet Power Spectrum (env-WPS) of the cosmic density field. 
+The Python module `WPSmesh` is built upon the [nbodykit](https://nbodykit.readthedocs.io/en/latest/). We use it to measure the environment-dependent Wavelet Power Spectrum (env-WPS) of the cosmic density field. 
 
 ## The contents of `WPSs(_sub).npz`
 ```Python
