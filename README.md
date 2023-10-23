@@ -30,6 +30,8 @@ The Python module `WPSmesh` is built upon the [nbodykit](https://nbodykit.readth
 
 ## References
 
+- Hand, Nick, et al. "nbodykit: An open-source, massively parallel toolkit for large-scale structure." The Astronomical Journal 156.4 (2018): 160.
+
 ## Acknowledgement
 
 We especially thank Dr. Yu Feng and Dr. Simon Foreman for their help.
