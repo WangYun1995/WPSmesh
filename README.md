@@ -18,14 +18,14 @@ The Python module `WPSmesh` is built upon the [nbodykit](https://nbodykit.readth
 >>WPSs_sub.files
 >>['k_pseu', 'f_vol_sub', 'env_WPS_sub', 'global_WPS_sub']
 
->>k         = WPSs['k_pseu']     # The pseudo wavenumber, shape: (25,)
+>>k         = WPSs['k_pseu']     # The pseudo wavenumber, shape: (25,), unit: h/Mpc
 >>fvol      = WPSs['f_vol']      # The volume fraction of the local density environment, shape: (8,)
->>envWPS    = WPSs['env_WPS']    # The total matter env-WPS, shape: (25,8)
->>globalWPS = WPSs['global_WPS'] # The total matter global-WPS, shape: (25,)
+>>envWPS    = WPSs['env_WPS']    # The total matter env-WPS, shape: (25,8), unit: (Mpc/h)^3
+>>globalWPS = WPSs['global_WPS'] # The total matter global-WPS, shape: (25,), unit: (Mpc/h)^3
 
 >>fvol_sub      = WPSs_sub['f_vol_sub']      # The volume fraction of the local density environment, shape: (8,8)
->>envWPS_sub    = WPSs_sub['env_WPS_sub']    # The total matter env-WPS, shape: (25,8,8)
->>globalWPS_sub = WPSs_sub['global_WPS_sub'] # The total matter global-WPS, shape: (25,8)
+>>envWPS_sub    = WPSs_sub['env_WPS_sub']    # The total matter env-WPS, shape: (25,8,8), unit: (Mpc/h)^3
+>>globalWPS_sub = WPSs_sub['global_WPS_sub'] # The total matter global-WPS, shape: (25,8), unit: (Mpc/h)^3
 ```
 
 ## References
