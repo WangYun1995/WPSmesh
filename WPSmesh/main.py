@@ -23,7 +23,7 @@ def iso_cwgdw(k_pseu):
         return v*wavelet
     return filter
 
-def WPSs( mesh1, mesh2, Nscales, Ndens, comm=None):
+def WPSs( mesh1, mesh2, Nscales, Ndens, kmax=0.4, comm=None ):
     '''The function used to compute the Wavelet Power Spectra (WPSs) of the mesh1.
 
     Inputs:
@@ -34,6 +34,7 @@ def WPSs( mesh1, mesh2, Nscales, Ndens, comm=None):
              total matter density field.
     Nscales: the number of scales.
     Ndens:   the number of local density environments.
+    kmax:    the maximum value of the pseudo wavenumber we take, by default 0.4; unit: k_Nyquist.
     comm:    the MPI communicator.
 
     Outputs:
@@ -56,7 +57,7 @@ def WPSs( mesh1, mesh2, Nscales, Ndens, comm=None):
     Nmesh     = mesh1.attrs['Nmesh'][0]   # Integer
     kf        = 2*np.pi/Lbox
     kNyq      = Nmesh*np.pi/Lbox
-    k_pseu    = np.geomspace(kf, 0.4*kNyq, Nscales)
+    k_pseu    = np.geomspace(kf, kmax*kNyq, Nscales)
     bins_temp = np.geomspace(0.1,100,Ndens-1,endpoint=True) 
     dens_bins = np.pad( bins_temp, (1, 1), 'constant', constant_values=(0,1e+100) )
 
@@ -94,7 +95,7 @@ def WPSs( mesh1, mesh2, Nscales, Ndens, comm=None):
 
     return k_pseu, f_vol, env_WPS, global_WPS
 
-def WPSs_subbox( mesh1, mesh2, Nscales, Ndens, Nsub=2, comm=None):
+def WPSs_subbox( mesh1, mesh2, Nscales, Ndens, kmax=0.4, Nsub=2, comm=None):
     '''The function used to compute the Wavelet Power Spectra (WPSs) for the sub boxes of the mesh1.
 
     Inputs:
@@ -105,6 +106,7 @@ def WPSs_subbox( mesh1, mesh2, Nscales, Ndens, Nsub=2, comm=None):
              total matter density field.
     Nscales: the number of scales.
     Ndens:   the number of local density environments.
+    kmax:    the maximum value of the pseudo wavenumber we take, by default 0.4; unit: k_Nyquist.
     Nsub:    the cubic root of number of subboxes in full box
     comm:    the MPI communicator.
 
@@ -128,7 +130,7 @@ def WPSs_subbox( mesh1, mesh2, Nscales, Ndens, Nsub=2, comm=None):
     Nmesh     = mesh1.attrs['Nmesh'][0]   # Integer
     kf        = 2*np.pi/Lbox
     kNyq      = Nmesh*np.pi/Lbox
-    k_pseu    = np.geomspace(kf, 0.4*kNyq, Nscales)
+    k_pseu    = np.geomspace(kf, kmax*kNyq, Nscales)
     bins_temp = np.geomspace(0.1,100,Ndens-1,endpoint=True) 
     dens_bins = np.pad( bins_temp, (1, 1), 'constant', constant_values=(0,1e+100) )
 
