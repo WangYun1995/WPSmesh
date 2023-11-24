@@ -23,31 +23,46 @@ def iso_cwgdw(k_pseu):
         return v*wavelet
     return filter
 
-def WPSs( mesh1, mesh2, Nscales, Ndens, kmax=0.4, comm=None ):
+def iso_rmw(k_pseu):
+    '''The isotropic real-valued Morlet wavelet in Fourier domain.
+    '''
+    def filter ( k, v ):
+        cw       = 0.1222000884469385
+        cn       = 8*(np.pi**(3/4))/np.sqrt(3*(1-44*np.exp(16)+43*np.exp(64)))
+        k2       = k[0]**2 + k[1]**2 + k[2]**2
+        scale    = cw*k_pseu
+        k2      /= scale**2
+        k        = np.sqrt(k2)
+        wavelet  = cn*(-0.5*np.exp(-0.5*k2)+0.75*(np.exp(-8*k-0.5*k2)+np.exp(8*k-0.5*k2)))
+        wavelet /= np.sqrt(scale**3)
+        return v*wavelet
+    return filter
+
+def WPSs( mesh1, maskmesh, Nscales, densbins, kmax=0.4, wavelet=iso_cwgdw, comm=None ):
     '''The function used to compute the Wavelet Power Spectra (WPSs) of the mesh1.
 
     Inputs:
     -------
-    mesh1:   the mesh object of which we want to compute the WPSs, which can be the
-             dark matter, baryons,or total matter.
-    mesh2:   the mesh object used to specify local density environments, i.e. the
-             total matter density field.
-    Nscales: the number of scales.
-    Ndens:   the number of local density environments.
-    kmax:    the maximum value of the pseudo wavenumber we take, by default 0.4; unit: k_Nyquist.
-    comm:    the MPI communicator.
+    mesh1:    the mesh object of which we want to compute the WPSs, which can be the
+              dark matter, baryons, or total matter.
+    maskmesh: the mesh object used to specify local density environments, i.e. the
+              total matter density field.
+    Nscales:  the number of scales.
+    densbins: 1-D array-like the bin edges.
+    kmax:     the maximum value of the pseudo wavenumber we take, by default 0.4; unit: k_Nyquist.
+    comm:     the MPI communicator.
 
     Outputs:
     --------
-    k_pseu:     1-D array_like with shape (Nscales,), 
+    k_pseu:     1-D array-like with shape (Nscales,), 
                 the pseudo wavenumbers which is equal to the wavelet scale divided by 
-                c_w (see 'Yun Wang and Ping He 2022 ApJ 934 112')
-    f_vol:      1-D array like with shape (Ndens,), 
+                c_w 
+    f_vol:      1-D array-like with shape (len(densbins)-1,), 
                 the fraction of the volume that is occupied by the local density 
                 environment.
-    env_WPS:    2-D array like with shape (Nscales, Ndens),
+    env_WPS:    2-D array-like with shape (Nscales, len(densbins)-1),
                 the environment-dependent wavelet power spectrum.
-    global_WPS: 1-D array_like with shape (Nscales,), 
+    global_WPS: 1-D array-like with shape (Nscales,), 
                 the global wavelet power spectrum. 
 
     '''
@@ -58,27 +73,25 @@ def WPSs( mesh1, mesh2, Nscales, Ndens, kmax=0.4, comm=None ):
     kf        = 2*np.pi/Lbox
     kNyq      = Nmesh*np.pi/Lbox
     k_pseu    = np.geomspace(kf, kmax*kNyq, Nscales)
-    bins_temp = np.geomspace(0.1,100,Ndens-1,endpoint=True) 
-    dens_bins = np.pad( bins_temp, (1, 1), 'constant', constant_values=(0,1e+100) )
 
-    if ( (Lbox!=mesh2.attrs['BoxSize'][0]) or (Nmesh!=mesh2.attrs['Nmesh'][0]) ):
-        raise Exception("The BoxSize and Nmesh should be the same between mesh1 and mesh2.")
+    if ( (Lbox!=maskmesh.attrs['BoxSize'][0]) or (Nmesh!=maskmesh.attrs['Nmesh'][0]) ):
+        raise Exception("The BoxSize and Nmesh should be the same between mesh1 and maskmesh.")
     
     # Compute the number of grids for each density environment
-    field2          = mesh2.compute(mode='real', Nmesh=Nmesh)
-    field2_         = np.ravel(field2)
-    Nvol_rank, _, _ = stats.binned_statistic(field2_, field2_, 'count', bins=dens_bins)
+    maskfield          = maskmesh.compute(mode='real', Nmesh=Nmesh)
+    maskfield_         = np.ravel(maskfield)
+    Nvol_rank, _, _ = stats.binned_statistic(maskfield_, maskfield_, 'count', bins=densbins)
 
     # Initialze the env_WPS
-    env_WPS_rank = np.empty( (Nscales, Ndens) )
+    env_WPS_rank = np.empty( (Nscales, len(densbins)-1) )
     # Perform the CWT and compute the env-WPS
     cfield1 = mesh1.compute(mode='complex', Nmesh=Nmesh)
     cmesh1  = FieldMesh(cfield1)
     for i, k in enumerate(k_pseu):
-        cwt_mesh                = cmesh1.apply(iso_cwgdw(k), mode='complex', kind='wavenumber')
+        cwt_mesh                = cmesh1.apply(wavelet(k), mode='complex', kind='wavenumber')
         cwt_field               = cwt_mesh.compute(mode='real', Nmesh=Nmesh)
         cwt2                    = np.ravel(cwt_field**2)
-        env_WPS_rank[i,:], _, _ = stats.binned_statistic(field2_, cwt2, 'sum', bins=dens_bins)
+        env_WPS_rank[i,:], _, _ = stats.binned_statistic(maskfield_, cwt2, 'sum', bins=densbins)
 
     if (comm==None):
         env_WPS    = env_WPS_rank/np.expand_dims(Nvol_rank, axis=0)
@@ -95,32 +108,109 @@ def WPSs( mesh1, mesh2, Nscales, Ndens, kmax=0.4, comm=None ):
 
     return k_pseu, f_vol, env_WPS, global_WPS
 
-def WPSs_subbox( mesh1, mesh2, Nscales, Ndens, kmax=0.4, Nsub=2, comm=None):
+def WCCs( mesh1, mesh2, maskmesh, Nscales, densbins, kmax=0.4, wavelet=iso_cwgdw, comm=None ):
+    '''The function used to compute the Wavelet Cross-Correlation functions (WCCs) between 
+       the mesh1 and mesh2.
+
+    Inputs:
+    -------
+    mesh1:    the mesh object of which we want to compute the WPSs, which can be the
+              dark matter, baryons, or total matter.
+    maskmesh: the mesh object used to specify local density environments, i.e. the
+              total matter density field.
+    Nscales:  the number of scales.
+    densbins: 1-D array-like the bin edges.
+    kmax:     the maximum value of the pseudo wavenumber we take, by default 0.4; unit: k_Nyquist.
+    comm:     the MPI communicator.
+
+    Outputs:
+    --------
+    k_pseu:     1-D array-like with shape (Nscales,), 
+                the pseudo wavenumbers which is equal to the wavelet scale divided by 
+                c_w (see 'Yun Wang and Ping He 2022 ApJ 934 112')
+    f_vol:      1-D array like with shape (len(densbins)-1,), 
+                the fraction of the volume that is occupied by the local density 
+                environment.
+    env_WCC:    2-D array-like with shape (Nscales, len(densbins)-1),
+                the environment-dependent wavelet cross-correlation function.
+    global_WCC: 1-D array-like with shape (Nscales,), 
+                the global wavelet cross-correlation function. 
+
+    '''
+
+    # Parameters
+    Lbox      = mesh1.attrs['BoxSize'][0] # Unit: Mpc/h
+    Nmesh     = mesh1.attrs['Nmesh'][0]   # Integer
+    kf        = 2*np.pi/Lbox
+    kNyq      = Nmesh*np.pi/Lbox
+    k_pseu    = np.geomspace(kf, kmax*kNyq, Nscales)
+
+    if ( (Lbox!=maskmesh.attrs['BoxSize'][0]) or (Nmesh!=maskmesh.attrs['Nmesh'][0]) ):
+        raise Exception("The BoxSize and Nmesh should be the same between mesh1 and maskmesh.")
+    
+    # Compute the number of grids for each density environment
+    maskfield       = maskmesh.compute(mode='real', Nmesh=Nmesh)
+    maskfield_      = np.ravel(maskfield)
+    Nvol_rank, _, _ = stats.binned_statistic(maskfield_, maskfield_, 'count', bins=densbins)
+
+    # Initialze the env_WCC
+    env_WCC_rank    = np.empty( (Nscales, len(densbins)-1) )
+    global_WCC_rank = np.empty( Nscales )
+    # Perform the CWT and compute the env-WPS
+    cfield1 = mesh1.compute(mode='complex', Nmesh=Nmesh)
+    cfield2 = mesh2.compute(mode='complex', Nmesh=Nmesh)
+    cmesh1  = FieldMesh(cfield1)
+    cmesh2  = FieldMesh(cfield2)
+    for i, k in enumerate(k_pseu):
+        cwt_mesh1               = cmesh1.apply(wavelet(k), mode='complex', kind='wavenumber')
+        cwt_mesh2               = cmesh2.apply(wavelet(k), mode='complex', kind='wavenumber')
+        cwt_field1              = cwt_mesh1.compute(mode='real', Nmesh=Nmesh)
+        cwt_field2              = cwt_mesh2.compute(mode='real', Nmesh=Nmesh)
+        xwt                     = np.ravel(cwt_field1*cwt_field2)
+        env_WCC_rank[i,:], _, _ = stats.binned_statistic(maskfield_, xwt, 'sum', bins=densbins)
+        global_WCC_rank[i]      = np.sum(xwt)
+
+    if (comm==None):
+        env_WCC    = env_WCC_rank/np.expand_dims(Nvol_rank, axis=0)
+        f_vol      = Nvol_rank/Nmesh**3    
+        global_WCC = global_WCC_rank/Nmesh**3
+
+    else:
+        # Reduction
+        Nvol       = comm.allreduce(Nvol_rank)
+        env_WCC    = comm.allreduce(env_WCC_rank)
+        env_WCC   /= np.expand_dims(Nvol,axis=0)
+        f_vol      = Nvol/Nmesh**3    
+        global_WCC = comm.allreduce(global_WCC_rank)/Nmesh**3
+
+    return k_pseu, f_vol, env_WCC, global_WCC
+
+def WPSs_subbox( mesh1, maskmesh, Nscales, densbins, kmax=0.4, Nsub=2, wavelet=iso_cwgdw, comm=None):
     '''The function used to compute the Wavelet Power Spectra (WPSs) for the sub boxes of the mesh1.
 
     Inputs:
     -------
-    mesh1:   the mesh object of which we want to compute the WPSs, which can be the
-             dark matter, baryons,or total matter.
-    mesh2:   the mesh object used to specify local density environments, i.e. the
-             total matter density field.
-    Nscales: the number of scales.
-    Ndens:   the number of local density environments.
-    kmax:    the maximum value of the pseudo wavenumber we take, by default 0.4; unit: k_Nyquist.
-    Nsub:    the cubic root of number of subboxes in full box
-    comm:    the MPI communicator.
+    mesh1:    the mesh object of which we want to compute the WPSs, which can be the
+              dark matter, baryons, or total matter.
+    maskmesh: the mesh object used to specify local density environments, i.e. the
+              total matter density field.
+    Nscales:  the number of scales.
+    densbins: 1-D array-like the bin edges.
+    kmax:     the maximum value of the pseudo wavenumber we take, by default 0.4; unit: k_Nyquist.
+    Nsub:     the cubic root of number of subboxes in full box
+    comm:     the MPI communicator.
 
     Outputs:
     --------
-    k_pseu:         1-D array_like with shape (Nscales,), 
+    k_pseu:         1-D array-like with shape (Nscales,), 
                     the pseudo wavenumbers which is equal to the wavelet scale divided by 
                     c_w (see 'Yun Wang and Ping He 2022 ApJ 934 112')
-    f_vol_sub:      2-D array like with shape (Ndens,Nsub**3), 
+    f_vol_sub:      2-D array-like with shape (len(densbins)-1,Nsub**3), 
                     the fraction of the volume that is occupied by the local density 
                     environment for sub-boxes.
-    env_WPS_sub:    3-D array like with shape (Nscales, Ndens, Nsub**3),
+    env_WPS_sub:    3-D array-like with shape (Nscales, len(densbins)-1, Nsub**3),
                     the environment-dependent wavelet power spectrum for sub-boxes.
-    global_WPS_sub: 2-D array_like with shape (Nscales,Nsub**3), 
+    global_WPS_sub: 2-D array-like with shape (Nscales,Nsub**3), 
                     the global wavelet power spectrum for sub-boxes. 
 
     '''
@@ -131,34 +221,32 @@ def WPSs_subbox( mesh1, mesh2, Nscales, Ndens, kmax=0.4, Nsub=2, comm=None):
     kf        = 2*np.pi/Lbox
     kNyq      = Nmesh*np.pi/Lbox
     k_pseu    = np.geomspace(kf, kmax*kNyq, Nscales)
-    bins_temp = np.geomspace(0.1,100,Ndens-1,endpoint=True) 
-    dens_bins = np.pad( bins_temp, (1, 1), 'constant', constant_values=(0,1e+100) )
 
-    if ( (Lbox!=mesh2.attrs['BoxSize'][0]) or (Nmesh!=mesh2.attrs['Nmesh'][0]) ):
-        raise Exception("The BoxSize and Nmesh should be the same between mesh1 and mesh2.")
+    if ( (Lbox!=maskmesh.attrs['BoxSize'][0]) or (Nmesh!=maskmesh.attrs['Nmesh'][0]) ):
+        raise Exception("The BoxSize and Nmesh should be the same between mesh1 and maskmesh.")
     
     # Compute the number of grids for each density environment
     Nsub3       = Nsub**3
-    Nvol_rank   = np.empty( (Ndens, Nsub3) )
-    field2      = mesh2.compute(mode='real', Nmesh=Nmesh)
-    field2_subs = {}
+    Nvol_rank   = np.empty( (len(densbins)-1, Nsub3) )
+    maskfield      = maskmesh.compute(mode='real', Nmesh=Nmesh)
+    maskfield_subs = {}
     for i in range(Nsub):
         for j in range(Nsub):
             for k in range(Nsub):
                 indx                    = subbox_multiindex_to_index((i,j,k),Nsub)
-                field2_sub              = field_subbox_pm((i,j,k),Nsub,field2)
-                field2_sub_             = np.ravel(field2_sub)
-                Nvol_rank[:,indx], _, _ = stats.binned_statistic(field2_sub_, field2_sub_, 
-                                                                 'count', bins=dens_bins)
-                field2_subs[indx]       = field2_sub_           
+                maskfield_sub              = field_subbox_pm((i,j,k),Nsub,maskfield)
+                maskfield_sub_             = np.ravel(maskfield_sub)
+                Nvol_rank[:,indx], _, _ = stats.binned_statistic(maskfield_sub_, maskfield_sub_, 
+                                                                 'count', bins=densbins)
+                maskfield_subs[indx]       = maskfield_sub_           
 
     # Initialze the env_WPS
-    env_WPS_rank = np.empty( (Nscales, Ndens, Nsub3) )
+    env_WPS_rank = np.empty( (Nscales, len(densbins)-1, Nsub3) )
     # Perform the CWT and compute the env-WPS
     cfield1 = mesh1.compute(mode='complex', Nmesh=Nmesh)
     cmesh1  = FieldMesh(cfield1)
     for ii, kk in enumerate(k_pseu):
-        cwt_mesh  = cmesh1.apply(iso_cwgdw(kk), mode='complex', kind='wavenumber')
+        cwt_mesh  = cmesh1.apply(wavelet(kk), mode='complex', kind='wavenumber')
         cwt_field = cwt_mesh.compute(mode='real', Nmesh=Nmesh)
         cwt2      = cwt_field**2
         for i in range(Nsub):
@@ -167,8 +255,8 @@ def WPSs_subbox( mesh1, mesh2, Nscales, Ndens, kmax=0.4, Nsub=2, comm=None):
                     indx                          = subbox_multiindex_to_index((i,j,k),Nsub)
                     cwt2_sub                      = field_subbox_pm((i,j,k),Nsub,cwt2)
                     cwt2_sub_                     = np.ravel(cwt2_sub)
-                    env_WPS_rank[ii,:,indx], _, _ = stats.binned_statistic(field2_subs[indx], cwt2_sub_, 
-                                                                           'sum', bins=dens_bins)
+                    env_WPS_rank[ii,:,indx], _, _ = stats.binned_statistic(maskfield_subs[indx], cwt2_sub_, 
+                                                                           'sum', bins=densbins)
 
     if (comm==None):
         env_WPS_sub    = env_WPS_rank/np.expand_dims(Nvol_rank, axis=0)
