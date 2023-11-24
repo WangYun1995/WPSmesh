@@ -48,7 +48,7 @@ print_status(comm,start_time,'Starting the calculations')
 # Measure the WPSs from the mesh
 Nscales = 25
 Ndens   = 8
-k_pseu, f_vol, env_WPS, global_WPS = WPSs( mesh1, mesh2, Nscales, Ndens, kmax=0.4, comm=comm)
+k_pseu, f_vol, env_WPS, global_WPS = WPSs( mesh1, mesh2, Nscales, densbins, kmax=0.4, wavelet=iso_cwgdw, comm=comm)
 
 #--------------------------------------------------------
 print_status(comm,start_time,'Done')
