@@ -50,7 +50,7 @@ Nscales   = 25
 Ndens     = 8
 bins_temp = np.geomspace(1e-1,1e+2,Ndens-1,endpoint=True) 
 densbins  = np.pad( bins_temp, (1, 1), 'constant', constant_values=(0,1e+100) )
-k_pseu, f_vol_sub, env_WPS_sub, global_WPS_sub = WPSs_subbox( mesh1, mesh2, Nscales, densbins, kmax=0.4, Nsub=2, wavelet=iso_cwgdw, comm=None)
+k_pseu, f_vol_sub, env_WPS_sub, global_WPS_sub = WPSs_subbox( mesh1, mesh2, Nscales, densbins, kmax=0.4, Nsub=2, wavelet='iso_cwgdw', comm=None)
 
 #--------------------------------------------------------
 print_status(comm,start_time,'Done')
