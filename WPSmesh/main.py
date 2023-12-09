@@ -38,7 +38,7 @@ def iso_rmw(k_pseu):
         return v*wavelet
     return filter
 
-def WPSs( mesh1, maskmesh, Nscales, densbins, kmax=0.4, wavelet=iso_cwgdw, comm=None ):
+def WPSs( mesh1, maskmesh, Nscales, densbins, kmax=0.4, wavelet='iso_cwgdw', comm=None ):
     '''The function used to compute the Wavelet Power Spectra (WPSs) of the mesh1.
 
     Inputs:
@@ -88,7 +88,11 @@ def WPSs( mesh1, maskmesh, Nscales, densbins, kmax=0.4, wavelet=iso_cwgdw, comm=
     cfield1 = mesh1.compute(mode='complex', Nmesh=Nmesh)
     cmesh1  = FieldMesh(cfield1)
     for i, k in enumerate(k_pseu):
-        cwt_mesh                = cmesh1.apply(wavelet(k), mode='complex', kind='wavenumber')
+        if (wavelet == 'iso_cwgdw'):
+            cwt_mesh            = cmesh1.apply(iso_cwgdw(k), mode='complex', kind='wavenumber')
+        elif (wavelet == 'iso_rmw'):
+            cwt_mesh            = cmesh1.apply(iso_rmw(k), mode='complex', kind='wavenumber')
+            
         cwt_field               = cwt_mesh.compute(mode='real', Nmesh=Nmesh)
         cwt2                    = np.ravel(cwt_field**2)
         env_WPS_rank[i,:], _, _ = stats.binned_statistic(maskfield_, cwt2, 'sum', bins=densbins)
@@ -108,7 +112,7 @@ def WPSs( mesh1, maskmesh, Nscales, densbins, kmax=0.4, wavelet=iso_cwgdw, comm=
 
     return k_pseu, f_vol, env_WPS, global_WPS
 
-def WCCs( mesh1, mesh2, maskmesh, Nscales, densbins, kmax=0.4, wavelet=iso_cwgdw, comm=None ):
+def WCCs( mesh1, mesh2, maskmesh, Nscales, densbins, kmax=0.4, wavelet='iso_cwgdw', comm=None ):
     '''The function used to compute the Wavelet Cross-Correlation functions (WCCs) between 
        the mesh1 and mesh2.
 
@@ -162,8 +166,13 @@ def WCCs( mesh1, mesh2, maskmesh, Nscales, densbins, kmax=0.4, wavelet=iso_cwgdw
     cmesh1  = FieldMesh(cfield1)
     cmesh2  = FieldMesh(cfield2)
     for i, k in enumerate(k_pseu):
-        cwt_mesh1               = cmesh1.apply(wavelet(k), mode='complex', kind='wavenumber')
-        cwt_mesh2               = cmesh2.apply(wavelet(k), mode='complex', kind='wavenumber')
+        if ( wavelet == 'iso_cwgdw' ):
+            cwt_mesh1           = cmesh1.apply(iso_cwgdw(k), mode='complex', kind='wavenumber')
+            cwt_mesh2           = cmesh2.apply(iso_cwgdw(k), mode='complex', kind='wavenumber')
+        elif (wavelet == 'iso_rmw'):
+            cwt_mesh1           = cmesh1.apply(iso_rmw(k), mode='complex', kind='wavenumber')
+            cwt_mesh2           = cmesh2.apply(iso_rmw(k), mode='complex', kind='wavenumber')
+            
         cwt_field1              = cwt_mesh1.compute(mode='real', Nmesh=Nmesh)
         cwt_field2              = cwt_mesh2.compute(mode='real', Nmesh=Nmesh)
         xwt                     = np.ravel(cwt_field1*cwt_field2)
@@ -185,7 +194,7 @@ def WCCs( mesh1, mesh2, maskmesh, Nscales, densbins, kmax=0.4, wavelet=iso_cwgdw
 
     return k_pseu, f_vol, env_WCC, global_WCC
 
-def WPSs_subbox( mesh1, maskmesh, Nscales, densbins, kmax=0.4, Nsub=2, wavelet=iso_cwgdw, comm=None):
+def WPSs_subbox( mesh1, maskmesh, Nscales, densbins, kmax=0.4, Nsub=2, wavelet='iso_cwgdw', comm=None):
     '''The function used to compute the Wavelet Power Spectra (WPSs) for the sub boxes of the mesh1.
 
     Inputs:
@@ -234,11 +243,11 @@ def WPSs_subbox( mesh1, maskmesh, Nscales, densbins, kmax=0.4, Nsub=2, wavelet=i
         for j in range(Nsub):
             for k in range(Nsub):
                 indx                    = subbox_multiindex_to_index((i,j,k),Nsub)
-                maskfield_sub              = field_subbox_pm((i,j,k),Nsub,maskfield)
-                maskfield_sub_             = np.ravel(maskfield_sub)
+                maskfield_sub           = field_subbox_pm((i,j,k),Nsub,maskfield)
+                maskfield_sub_          = np.ravel(maskfield_sub)
                 Nvol_rank[:,indx], _, _ = stats.binned_statistic(maskfield_sub_, maskfield_sub_, 
                                                                  'count', bins=densbins)
-                maskfield_subs[indx]       = maskfield_sub_           
+                maskfield_subs[indx]    = maskfield_sub_           
 
     # Initialze the env_WPS
     env_WPS_rank = np.empty( (Nscales, len(densbins)-1, Nsub3) )
@@ -246,7 +255,11 @@ def WPSs_subbox( mesh1, maskmesh, Nscales, densbins, kmax=0.4, Nsub=2, wavelet=i
     cfield1 = mesh1.compute(mode='complex', Nmesh=Nmesh)
     cmesh1  = FieldMesh(cfield1)
     for ii, kk in enumerate(k_pseu):
-        cwt_mesh  = cmesh1.apply(wavelet(kk), mode='complex', kind='wavenumber')
+        if (wavelet == 'iso_cwgdw'):
+            cwt_mesh  = cmesh1.apply(iso_cwgdw(kk), mode='complex', kind='wavenumber')
+        elif (wavelet == 'iso_rmw'):
+            cwt_mesh  = cmesh1.apply(iso_rmw(kk), mode='complex', kind='wavenumber')
+            
         cwt_field = cwt_mesh.compute(mode='real', Nmesh=Nmesh)
         cwt2      = cwt_field**2
         for i in range(Nsub):
