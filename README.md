@@ -29,8 +29,7 @@ The Python module `WPSmesh` is built upon the [nbodykit](https://nbodykit.readth
 ```
 
 ## References
-
-- Wang, Yun, and Ping He. "How do baryonic effects on the cosmic matter distribution vary with scale and local density environment?" 	arXiv preprint [arXiv:2310.20278](https://ui.adsabs.harvard.edu/abs/2023arXiv231020278W/abstract) (2023). 
+- Wang, Yun, and Ping He. "How do baryonic effects on the cosmic matter distribution vary with scale and local density environment?" Monthly Notices of the Royal Astronomical Society, [2024;, stae229](https://doi.org/10.1093/mnras/stae229). 
 - Hand, Nick, et al. "nbodykit: An open-source, massively parallel toolkit for large-scale structure." The Astronomical Journal [156.4 (2018): 160](https://iopscience.iop.org/article/10.3847/1538-3881/aadae0/meta).
 
 ## Acknowledgement
