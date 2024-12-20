@@ -112,6 +112,87 @@ def WPSs( mesh1, maskmesh, Nscales, densbins, kmax=0.4, wavelet='iso_cwgdw', com
 
     return k_pseu, f_vol, env_WPS, global_WPS
 
+def weightWPSs( mesh1, maskmesh, wmesh, Nscales, densbins, kmax=0.4, wavelet='iso_cwgdw', comm=None ):
+    '''The function used to compute the weighted Wavelet Power Spectra (WPSs) of the mesh1,
+       i.e. wmesh*| CWT of mesh1 |^2.
+
+    Inputs:
+    -------
+    mesh1:    the mesh object of which we want to compute the WPSs, which can be the
+              dark matter, baryons, or total matter.
+    maskmesh: the mesh object used to specify local density environments, i.e. the
+              total matter density field.
+    wmesh:    the weight mesh.
+    Nscales:  the number of scales.
+    densbins: 1-D array-like the bin edges.
+    kmax:     the maximum value of the pseudo wavenumber we take, by default 0.4; unit: k_Nyquist.
+    comm:     the MPI communicator.
+
+    Outputs:
+    --------
+    k_pseu:     1-D array-like with shape (Nscales,), 
+                the pseudo wavenumbers which is equal to the wavelet scale divided by 
+                c_w 
+    f_vol:      1-D array-like with shape (len(densbins)-1,), 
+                the fraction of the volume that is occupied by the local density 
+                environment.
+    env_WPS:    2-D array-like with shape (Nscales, len(densbins)-1),
+                the environment-dependent wavelet power spectrum.
+    global_WPS: 1-D array-like with shape (Nscales,), 
+                the global wavelet power spectrum. 
+
+    '''
+
+    # Parameters
+    Lbox      = mesh1.attrs['BoxSize'][0] # Unit: Mpc/h
+    Nmesh     = mesh1.attrs['Nmesh'][0]   # Integer
+    kf        = 2*np.pi/Lbox
+    kNyq      = Nmesh*np.pi/Lbox
+    k_pseu    = np.geomspace(kf, kmax*kNyq, Nscales)
+
+    if ( (Lbox!=maskmesh.attrs['BoxSize'][0]) or (Nmesh!=maskmesh.attrs['Nmesh'][0]) ):
+        raise Exception("The BoxSize and Nmesh should be the same between mesh1 and maskmesh.")
+    if ( (Lbox!=wmesh.attrs['BoxSize'][0]) or (Nmesh!=wmesh.attrs['Nmesh'][0]) ):
+        raise Exception("The BoxSize and Nmesh should be the same between mesh1 and wmesh.")
+    
+    # Compute the number of grids for each density environment
+    maskfield       = maskmesh.compute(mode='real', Nmesh=Nmesh)
+    maskfield_      = np.ravel(maskfield)
+    Nvol_rank, _, _ = stats.binned_statistic(maskfield_, maskfield_, 'count', bins=densbins)
+
+    # Load the real field from the wmesh
+    wfield          = wmesh.compute(mode='real', Nmesh=Nmesh)
+
+    # Initialze the env_WPS
+    env_WPS_rank = np.empty( (Nscales, len(densbins)-1) )
+    # Perform the CWT and compute the env-WPS
+    cfield1 = mesh1.compute(mode='complex', Nmesh=Nmesh)
+    cmesh1  = FieldMesh(cfield1)
+    for i, k in enumerate(k_pseu):
+        if (wavelet == 'iso_cwgdw'):
+            cwt_mesh            = cmesh1.apply(iso_cwgdw(k), mode='complex', kind='wavenumber')
+        elif (wavelet == 'iso_rmw'):
+            cwt_mesh            = cmesh1.apply(iso_rmw(k), mode='complex', kind='wavenumber')
+            
+        cwt_field               = cwt_mesh.compute(mode='real', Nmesh=Nmesh)
+        cwt2                    = np.ravel( wfield*cwt_field**2 )
+        env_WPS_rank[i,:], _, _ = stats.binned_statistic(maskfield_, cwt2, 'sum', bins=densbins)
+
+    if (comm==None):
+        env_WPS    = env_WPS_rank/np.expand_dims(Nvol_rank, axis=0)
+        f_vol      = Nvol_rank/Nmesh**3    
+        global_WPS = np.sum( env_WPS_rank, axis=1 )/Nmesh**3
+
+    else:
+        # Reduction
+        Nvol       = comm.allreduce(Nvol_rank)
+        env_WPS    = comm.allreduce(env_WPS_rank)
+        f_vol      = Nvol/Nmesh**3    
+        global_WPS = np.sum( env_WPS, axis=1 )/Nmesh**3
+        env_WPS    = env_WPS/np.expand_dims(Nvol,axis=0)
+
+    return k_pseu, f_vol, env_WPS, global_WPS
+
 def WCCs( mesh1, mesh2, maskmesh, Nscales, densbins, kmax=0.4, wavelet='iso_cwgdw', comm=None ):
     '''The function used to compute the Wavelet Cross-Correlation functions (WCCs) between 
        the mesh1 and mesh2.
